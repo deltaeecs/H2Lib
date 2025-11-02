@@ -51,7 +51,7 @@ if(TRACE_MEMORY)
 endif()
 
 # Feature options
-option(USE_COMPLEX "Use complex numbers" OFF)
+option(USE_COMPLEX "Use complex numbers" ON)
 option(USE_FLOAT "Use single precision floating point numbers" OFF)
 option(USE_THREADSAFE_LAPACK "Use thread-safe version of LAPACK" OFF)
 option(USE_SIMD "Use SIMD-instructions for compute intense tasks" ON)
