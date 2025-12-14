@@ -7,6 +7,8 @@ set(EXAMPLE_SOURCES
     example_h2matrix_bem3d.c
     example_fem_p1_harith.c
     example_fem_rt0_harith.c
+    example_simple_api.c
+    example_index_kernels.c
 )
 
 # Create example executables

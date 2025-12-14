@@ -211,6 +211,17 @@ typedef field (*kernel_func3d)(const real *x, const real *y, const real *nx,
     const real *ny, void *data);
 
 /**
+ * @brief Index-based kernel function for BEM3D - evaluates fundamental solution
+ * using point indices.
+ *
+ * @param idx_x Index of first evaluation point.
+ * @param idx_y Index of second evaluation point.
+ * @param data Additional data (typically contains bem3d structure with geometry).
+ * @return Kernel value.
+ */
+typedef field (*kernel_func3d_idx)(uint idx_x, uint idx_y, void *data);
+
+/**
  * @brief Evaluate a modified fundamental solution or its normal derivatives
  * at points @p x and @p y.
  *
@@ -229,6 +240,18 @@ typedef field (*kernel_func3d)(const real *x, const real *y, const real *nx,
  */
 typedef field (*kernel_wave_func3d)(const real *x, const real *y,
     const real *nx, const real *ny, pcreal dir, void *data);
+
+/**
+ * @brief Index-based kernel function for wave/Helmholtz problems.
+ *
+ * @param idx_x Index of first evaluation point.
+ * @param idx_y Index of second evaluation point.
+ * @param dir A vector containing the direction @f$c@f$.
+ * @param data Additional data (typically contains bem3d structure with geometry).
+ * @return Kernel value.
+ */
+typedef field (*kernel_wave_func3d_idx)(uint idx_x, uint idx_y,
+    pcreal dir, void *data);
 
 #ifdef USE_SIMD
 typedef void (*kernel_simd_func3d)(const vreal *x, const vreal *y,

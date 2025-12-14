@@ -42,8 +42,11 @@ struct _kernelmatrix {
   /** @brief Spatial dimension. */
   uint dim;
 
-  /** @brief Kernel function. */
-  field (*kernel)(const real *xx, const real *yy, void *data);
+  /** @brief Kernel function using indices. */
+  field (*kernel)(uint ii, uint jj, void *data);
+
+  /** @brief Internal kernel function using coordinates (for interpolation). */
+  field (*kernel_internal)(const real *xx, const real *yy, void *data);
 
   /** @brief Data for the kernel function. */
   void *data;

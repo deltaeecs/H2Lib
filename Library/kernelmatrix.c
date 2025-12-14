@@ -26,8 +26,9 @@ new_kernelmatrix(uint dim, uint points, uint m)
   km->points = points;
   km->m = m;
 
-  /* Empty kernel callback function */
+  /* Empty kernel callback functions */
   km->kernel = 0;
+  km->kernel_internal = 0;
   km->data = 0;
 
   /* Initialize arrays for point coordinates */
@@ -89,7 +90,6 @@ void
 fillN_kernelmatrix(const uint *ridx, const uint *cidx, pckernelmatrix km,
 		   pamatrix N)
 {
-  const real **x = (const real **) km->x;
   uint rows = N->rows;
   uint cols = N->cols;
   pfield Na = N->a;
@@ -104,7 +104,7 @@ fillN_kernelmatrix(const uint *ridx, const uint *cidx, pckernelmatrix km,
 	for(i=0; i<rows; i++) {
 	  ii = ridx[i];
 
-	  Na[i+j*ldN] = km->kernel(x[ii], x[jj], km->data);
+	  Na[i+j*ldN] = km->kernel(ii, jj, km->data);
 	}
       }
     }
@@ -115,7 +115,7 @@ fillN_kernelmatrix(const uint *ridx, const uint *cidx, pckernelmatrix km,
 	for(i=0; i<rows; i++) {
 	  ii = ridx[i];
 
-	  Na[i+j*ldN] = km->kernel(x[ii], x[j], km->data);
+	  Na[i+j*ldN] = km->kernel(ii, j, km->data);
 	}
       }
     }
@@ -128,7 +128,7 @@ fillN_kernelmatrix(const uint *ridx, const uint *cidx, pckernelmatrix km,
 	jj = cidx[j];
 
 	for(i=0; i<rows; i++)
-	  Na[i+j*ldN] = km->kernel(x[i], x[jj], km->data);
+	  Na[i+j*ldN] = km->kernel(i, jj, km->data);
       }
     }
     else {
@@ -136,7 +136,7 @@ fillN_kernelmatrix(const uint *ridx, const uint *cidx, pckernelmatrix km,
 
       for(j=0; j<cols; j++)
 	for(i=0; i<rows; i++)
-	  Na[i+j*ldN] = km->kernel(x[i], x[j], km->data);
+	  Na[i+j*ldN] = km->kernel(i, j, km->data);
     }
   }
 }
@@ -217,7 +217,7 @@ fillS_1d(uint dim, uint i0, uint j0,
       for(j=0; j<m; j++) {
 	yy[dim] = cxi[dim][j];
 
-	Sa[(i+i0*m)+(j+j0*m)*ldS] = km->kernel(xx, yy, km->data);
+	Sa[(i+i0*m)+(j+j0*m)*ldS] = km->kernel_internal(xx, yy, km->data);
       }
     }
   }
@@ -277,7 +277,7 @@ fillS_2d(uint dim, uint i0, uint j0,
 	  for(j2=0; j2<m; j2++) {
 	    yy[dim+1] = cxi[dim+1][j2];
 
-	    Sa[(i1+m*(i2+m*i0)) + (j1+m*(j2+m*j0))*ldS] = km->kernel(xx, yy, km->data);
+	    Sa[(i1+m*(i2+m*i0)) + (j1+m*(j2+m*j0))*ldS] = km->kernel_internal(xx, yy, km->data);
 	  }
 	}
       }

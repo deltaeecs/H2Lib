@@ -239,6 +239,77 @@ hs_kernel_simd_laplacebem3d(const vreal * x, const vreal * y,
 }
 #endif
 
+/* ------------------------------------------------------------
+ * Index-based kernel function wrappers
+ * These provide index-based interface while internally converting
+ * to coordinates for actual computation
+ * ------------------------------------------------------------ */
+
+/** @brief Helper structure to pass bem3d and surface data to index-based kernels */
+typedef struct {
+  pcbem3d bem;
+  pcsurface3d gr;
+} bem3d_kernel_data;
+
+/**
+ * @brief Index-based wrapper for SLP kernel
+ */
+static inline field
+slp_kernel_idx_laplacebem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  
+  /* Normals not used in SLP */
+  const real *nx = NULL;
+  const real *ny = NULL;
+  
+  /* Call coordinate-based kernel */
+  return slp_kernel_laplacebem3d(x, y, nx, ny, (void*)kd->bem);
+}
+
+/**
+ * @brief Index-based wrapper for DLP kernel
+ */
+static inline field
+dlp_kernel_idx_laplacebem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates and normals by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  const real *nx = gr->n[idx_x];
+  const real *ny = gr->n[idx_y];
+  
+  /* Call coordinate-based kernel */
+  return dlp_kernel_laplacebem3d(x, y, nx, ny, (void*)kd->bem);
+}
+
+/**
+ * @brief Index-based wrapper for hypersingular kernel
+ */
+static inline field
+hs_kernel_idx_laplacebem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates and normals by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  const real *nx = gr->n[idx_x];
+  const real *ny = gr->n[idx_y];
+  
+  /* Call coordinate-based kernel */
+  return hs_kernel_laplacebem3d(x, y, nx, ny, (void*)kd->bem);
+}
+
 #ifdef USE_SIMD
 static void
 fill_slp_cc_near_laplacebem3d(const uint * ridx, const uint * cidx,

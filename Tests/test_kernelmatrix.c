@@ -1,16 +1,10 @@
 
-#include "kernelmatrix.h"
+#include "h2lib.h"
 
 #include <stdio.h>
 
-#include "basic.h"
-#include "h2compression.h"
-#include "h2matrix.h"
-#include "parameters.h"
-#include "matrixnorms.h"
-
 static field
-kernel_newton(const real *xx, const real *yy, void *data)
+kernel_newton_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -22,7 +16,7 @@ kernel_newton(const real *xx, const real *yy, void *data)
 }
 
 static field
-kernel_exp(const real *xx, const real *yy, void *data)
+kernel_exp_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -34,7 +28,7 @@ kernel_exp(const real *xx, const real *yy, void *data)
 }
 
 static field
-kernel_log(const real *xx, const real *yy, void *data)
+kernel_log_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -64,8 +58,9 @@ main(int argc, char **argv)
   real eps, eta;
   real t_setup, norm, error;
   uint i;
+  field (*kernel_func)(const real *, const real *, void *);
 
-  init_h2lib(&argc, &argv);
+  h2lib_init(&argc, &argv);
 
   sw = new_stopwatch();
 
@@ -84,19 +79,23 @@ main(int argc, char **argv)
   (void) printf("Creating kernelmatrix object for %u points, order %u\n",
 		points, m);
   km = new_kernelmatrix(2, points, m);
+  
   switch(kernel) {
   case 'e':
     (void) printf("  Exponential kernel function\n");
-    km->kernel = kernel_exp;
+    kernel_func = kernel_exp_coord;
     break;
   case 'n':
     (void) printf("  Newton kernel function\n");
-    km->kernel = kernel_newton;
+    kernel_func = kernel_newton_coord;
     break;
   default:
     (void) printf("  Logarithmic kernel function\n");
-    km->kernel = kernel_log;
+    kernel_func = kernel_log_coord;
   }
+  
+  /* Setup kernel using simplified API */
+  h2lib_setup_kernel(km, kernel_func, NULL);
 
   /* Random points in [-1,1]^2 */
   for(i=0; i<points; i++) {
@@ -184,7 +183,10 @@ main(int argc, char **argv)
   (void) printf("  Spectral error %.3e (%.3e)\n",
 		error, error/norm);
 
-  uninit_h2lib();
+  /* Clean up kernel data using simplified API */
+  h2lib_cleanup_kernel(km);
+
+  h2lib_finalize();
 
   return 0;
 }
