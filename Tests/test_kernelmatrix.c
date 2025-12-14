@@ -1,20 +1,7 @@
 
-#include "kernelmatrix.h"
+#include "h2lib.h"
 
 #include <stdio.h>
-
-#include "basic.h"
-#include "h2compression.h"
-#include "h2matrix.h"
-#include "parameters.h"
-#include "matrixnorms.h"
-
-/* Kernel data structure to hold points and actual kernel function */
-typedef struct {
-  real **x;
-  field (*kernel_coord)(const real *xx, const real *yy, void *data);
-  void *user_data;
-} kernel_data;
 
 static field
 kernel_newton_coord(const real *xx, const real *yy, void *data)
@@ -52,27 +39,6 @@ kernel_log_coord(const real *xx, const real *yy, void *data)
   return (norm2 == 0.0 ? 0.0 : -0.5*REAL_LOG(norm2));
 }
 
-static field
-kernel_newton(uint ii, uint jj, void *data)
-{
-  kernel_data *kd = (kernel_data *) data;
-  return kernel_newton_coord(kd->x[ii], kd->x[jj], kd->user_data);
-}
-
-static field
-kernel_exp(uint ii, uint jj, void *data)
-{
-  kernel_data *kd = (kernel_data *) data;
-  return kernel_exp_coord(kd->x[ii], kd->x[jj], kd->user_data);
-}
-
-static field
-kernel_log(uint ii, uint jj, void *data)
-{
-  kernel_data *kd = (kernel_data *) data;
-  return kernel_log_coord(kd->x[ii], kd->x[jj], kd->user_data);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -92,9 +58,9 @@ main(int argc, char **argv)
   real eps, eta;
   real t_setup, norm, error;
   uint i;
-  kernel_data *kd;
+  field (*kernel_func)(const real *, const real *, void *);
 
-  init_h2lib(&argc, &argv);
+  h2lib_init(&argc, &argv);
 
   sw = new_stopwatch();
 
@@ -114,31 +80,22 @@ main(int argc, char **argv)
 		points, m);
   km = new_kernelmatrix(2, points, m);
   
-  /* Set up kernel data structure */
-  kd = (kernel_data *) allocmem(sizeof(kernel_data));
-  kd->x = km->x;
-  kd->user_data = NULL;
-  km->data = kd;
-  
   switch(kernel) {
   case 'e':
     (void) printf("  Exponential kernel function\n");
-    km->kernel = kernel_exp;
-    km->kernel_internal = kernel_exp_coord;
-    kd->kernel_coord = kernel_exp_coord;
+    kernel_func = kernel_exp_coord;
     break;
   case 'n':
     (void) printf("  Newton kernel function\n");
-    km->kernel = kernel_newton;
-    km->kernel_internal = kernel_newton_coord;
-    kd->kernel_coord = kernel_newton_coord;
+    kernel_func = kernel_newton_coord;
     break;
   default:
     (void) printf("  Logarithmic kernel function\n");
-    km->kernel = kernel_log;
-    km->kernel_internal = kernel_log_coord;
-    kd->kernel_coord = kernel_log_coord;
+    kernel_func = kernel_log_coord;
   }
+  
+  /* Setup kernel using simplified API */
+  h2lib_setup_kernel(km, kernel_func, NULL);
 
   /* Random points in [-1,1]^2 */
   for(i=0; i<points; i++) {
@@ -226,10 +183,10 @@ main(int argc, char **argv)
   (void) printf("  Spectral error %.3e (%.3e)\n",
 		error, error/norm);
 
-  /* Clean up kernel data */
-  freemem(kd);
+  /* Clean up kernel data using simplified API */
+  h2lib_cleanup_kernel(km);
 
-  uninit_h2lib();
+  h2lib_finalize();
 
   return 0;
 }
