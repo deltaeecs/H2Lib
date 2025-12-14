@@ -1,0 +1,1 @@
+/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/example_h2matrix_bem3d.dir/link.d CMakeFiles/example_h2matrix_bem3d.dir/example_h2matrix_bem3d.c.o -o example_h2matrix_bem3d  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm

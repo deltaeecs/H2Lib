@@ -118,6 +118,7 @@ target_link_libraries(h2lib PUBLIC
     ${BLAS_LIBRARIES}
     ${LAPACK_LIBRARIES}
     ${EXTRA_LIBS}
+    m
 )
 
 # Set include directories

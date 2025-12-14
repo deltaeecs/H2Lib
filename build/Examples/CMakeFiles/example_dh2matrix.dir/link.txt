@@ -1,0 +1,1 @@
+/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/example_dh2matrix.dir/link.d CMakeFiles/example_dh2matrix.dir/example_dh2matrix.c.o -o example_dh2matrix  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm
