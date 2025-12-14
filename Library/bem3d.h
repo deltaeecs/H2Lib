@@ -197,46 +197,42 @@ typedef enum _basisfunctionbem3d basisfunctionbem3d;
 typedef field (*boundary_func3d)(const real *x, const real *n, void *data);
 
 /**
- * @brief Evaluate a fundamental solution or its normal derivatives at points
- * @p x and @p y.
+ * @brief Evaluate a fundamental solution or its normal derivatives using
+ * indices to points.
  *
- * @param x First evaluation point.
- * @param y Second evaluation point.
- * @param nx Normal vector that belongs to @p x.
- * @param ny Normal vector that belongs to @p y.
- * @param data Additional data that is needed to evaluate the function.
- * @return
+ * @param idx_x Index of first evaluation point.
+ * @param idx_y Index of second evaluation point.
+ * @param data Additional data that is needed to evaluate the function
+ *             (should contain bem3d structure for coordinate/normal lookup).
+ * @return Kernel value at the given indices.
  */
-typedef field (*kernel_func3d)(const real *x, const real *y, const real *nx,
-    const real *ny, void *data);
+typedef field (*kernel_func3d)(uint idx_x, uint idx_y, void *data);
 
 /**
  * @brief Evaluate a modified fundamental solution or its normal derivatives
- * at points @p x and @p y.
+ * using indices to points.
  *
  * The modified fundamental solution is defined as
  * @f[
  * g_{c}(x,y) = g(x,y) e^{\langle c, x - y \rangle}
  * @f]
  *
- * @param x First evaluation point.
- * @param y Second evaluation point.
- * @param nx Normal vector that belongs to @p x.
- * @param ny Normal vector that belongs to @p y.
+ * @param idx_x Index of first evaluation point.
+ * @param idx_y Index of second evaluation point.
  * @param dir A vector containing the direction @f$c@f$.
- * @param data Additional data that is needed to evaluate the function.
- * @return
+ * @param data Additional data that is needed to evaluate the function
+ *             (should contain bem3d structure for coordinate/normal lookup).
+ * @return Kernel value at the given indices.
  */
-typedef field (*kernel_wave_func3d)(const real *x, const real *y,
-    const real *nx, const real *ny, pcreal dir, void *data);
+typedef field (*kernel_wave_func3d)(uint idx_x, uint idx_y,
+    pcreal dir, void *data);
 
 #ifdef USE_SIMD
-typedef void (*kernel_simd_func3d)(const vreal *x, const vreal *y,
-    const vreal *nx, const vreal *ny, void *data, vreal *res_re, vreal *res_im);
+typedef void (*kernel_simd_func3d)(uint idx_x, uint idx_y, void *data, 
+    vreal *res_re, vreal *res_im);
 
-typedef void (*kernel_simd_wave_func3d)(const vreal *x, const vreal *y,
-    const vreal *nx, const vreal *ny, pcreal dir, void *data, vreal *res_re,
-    vreal *res_im);
+typedef void (*kernel_simd_wave_func3d)(uint idx_x, uint idx_y,
+    pcreal dir, void *data, vreal *res_re, vreal *res_im);
 #endif
 
 /**
