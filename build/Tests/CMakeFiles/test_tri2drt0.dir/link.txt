@@ -1,1 +1,0 @@
-/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/test_tri2drt0.dir/link.d CMakeFiles/test_tri2drt0.dir/test_tri2drt0.c.o -o test_tri2drt0  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm

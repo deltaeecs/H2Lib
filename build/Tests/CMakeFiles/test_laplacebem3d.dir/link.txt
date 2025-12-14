@@ -1,1 +1,0 @@
-/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/test_laplacebem3d.dir/link.d CMakeFiles/test_laplacebem3d.dir/test_laplacebem3d.c.o -o test_laplacebem3d  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm

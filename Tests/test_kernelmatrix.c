@@ -9,8 +9,15 @@
 #include "parameters.h"
 #include "matrixnorms.h"
 
+/* Kernel data structure to hold points and actual kernel function */
+typedef struct {
+  real **x;
+  field (*kernel_coord)(const real *xx, const real *yy, void *data);
+  void *user_data;
+} kernel_data;
+
 static field
-kernel_newton(const real *xx, const real *yy, void *data)
+kernel_newton_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -22,7 +29,7 @@ kernel_newton(const real *xx, const real *yy, void *data)
 }
 
 static field
-kernel_exp(const real *xx, const real *yy, void *data)
+kernel_exp_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -34,7 +41,7 @@ kernel_exp(const real *xx, const real *yy, void *data)
 }
 
 static field
-kernel_log(const real *xx, const real *yy, void *data)
+kernel_log_coord(const real *xx, const real *yy, void *data)
 {
   real norm2;
 
@@ -43,6 +50,27 @@ kernel_log(const real *xx, const real *yy, void *data)
   norm2 = REAL_SQR(xx[0] - yy[0]) + REAL_SQR(xx[1] - yy[1]);
 
   return (norm2 == 0.0 ? 0.0 : -0.5*REAL_LOG(norm2));
+}
+
+static field
+kernel_newton(uint ii, uint jj, void *data)
+{
+  kernel_data *kd = (kernel_data *) data;
+  return kernel_newton_coord(kd->x[ii], kd->x[jj], kd->user_data);
+}
+
+static field
+kernel_exp(uint ii, uint jj, void *data)
+{
+  kernel_data *kd = (kernel_data *) data;
+  return kernel_exp_coord(kd->x[ii], kd->x[jj], kd->user_data);
+}
+
+static field
+kernel_log(uint ii, uint jj, void *data)
+{
+  kernel_data *kd = (kernel_data *) data;
+  return kernel_log_coord(kd->x[ii], kd->x[jj], kd->user_data);
 }
 
 int
@@ -64,6 +92,7 @@ main(int argc, char **argv)
   real eps, eta;
   real t_setup, norm, error;
   uint i;
+  kernel_data *kd;
 
   init_h2lib(&argc, &argv);
 
@@ -84,18 +113,31 @@ main(int argc, char **argv)
   (void) printf("Creating kernelmatrix object for %u points, order %u\n",
 		points, m);
   km = new_kernelmatrix(2, points, m);
+  
+  /* Set up kernel data structure */
+  kd = (kernel_data *) allocmem(sizeof(kernel_data));
+  kd->x = km->x;
+  kd->user_data = NULL;
+  km->data = kd;
+  
   switch(kernel) {
   case 'e':
     (void) printf("  Exponential kernel function\n");
     km->kernel = kernel_exp;
+    km->kernel_internal = kernel_exp_coord;
+    kd->kernel_coord = kernel_exp_coord;
     break;
   case 'n':
     (void) printf("  Newton kernel function\n");
     km->kernel = kernel_newton;
+    km->kernel_internal = kernel_newton_coord;
+    kd->kernel_coord = kernel_newton_coord;
     break;
   default:
     (void) printf("  Logarithmic kernel function\n");
     km->kernel = kernel_log;
+    km->kernel_internal = kernel_log_coord;
+    kd->kernel_coord = kernel_log_coord;
   }
 
   /* Random points in [-1,1]^2 */
@@ -183,6 +225,9 @@ main(int argc, char **argv)
   error = norm2diff_amatrix_h2matrix(Gh2, G);
   (void) printf("  Spectral error %.3e (%.3e)\n",
 		error, error/norm);
+
+  /* Clean up kernel data */
+  freemem(kd);
 
   uninit_h2lib();
 

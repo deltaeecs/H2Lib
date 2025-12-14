@@ -1,1 +1,0 @@
-/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/test_h2compression.dir/link.d CMakeFiles/test_h2compression.dir/test_h2compression.c.o -o test_h2compression  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm

@@ -1,1 +1,0 @@
-/usr/bin/cc -O0 -g -Wl,--dependency-file=CMakeFiles/test_hmatrix.dir/link.d CMakeFiles/test_hmatrix.dir/test_hmatrix.c.o -o test_hmatrix  ../Library/libh2lib.a /usr/lib/x86_64-linux-gnu/libz.so -lm
