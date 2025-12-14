@@ -27,6 +27,7 @@ Examples/example_h2matrix_bem3d
 Examples/example_fem_p1_harith
 Examples/example_fem_rt0_harith
 Examples/example_simple_api
+Examples/example_index_kernels
 Library/laplaceoclbem3d.c
 Library/helmholtzoclbem3d.c
 build/
