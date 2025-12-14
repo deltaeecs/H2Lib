@@ -23,6 +23,12 @@
 
 #define KERNEL_CONST_HELMHOLTZBEM3D 0.0795774715459476679
 
+/** @brief Helper structure to pass bem3d and surface data to index-based kernels */
+typedef struct {
+  pcbem3d bem;
+  pcsurface3d gr;
+} bem3d_kernel_data;
+
 static inline field
 slp_kernel_helmholtzbem3d(const real * x, const real * y,
 			  const real * nx, const real * ny, void *data)
@@ -352,6 +358,71 @@ hs_kernel_simd_helmholtzbem3d(const vreal * x,
   *res_im = vmul(rnorm, vadd(vmul(c, hi), vmul(s, hr)));
 }
 #endif
+
+/* ------------------------------------------------------------
+ * Index-based kernel function wrappers for Helmholtz BEM3D
+ * These provide index-based interface while internally converting
+ * to coordinates for actual computation
+ * ------------------------------------------------------------ */
+
+/**
+ * @brief Index-based wrapper for Helmholtz SLP kernel
+ */
+static inline field
+slp_kernel_idx_helmholtzbem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  
+  /* Normals not used in SLP */
+  const real *nx = NULL;
+  const real *ny = NULL;
+  
+  /* Call coordinate-based kernel with bem data */
+  return slp_kernel_helmholtzbem3d(x, y, nx, ny, (void*)kd->bem);
+}
+
+/**
+ * @brief Index-based wrapper for Helmholtz DLP kernel
+ */
+static inline field
+dlp_kernel_idx_helmholtzbem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates and normals by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  const real *nx = gr->n[idx_x];
+  const real *ny = gr->n[idx_y];
+  
+  /* Call coordinate-based kernel with bem data */
+  return dlp_kernel_helmholtzbem3d(x, y, nx, ny, (void*)kd->bem);
+}
+
+/**
+ * @brief Index-based wrapper for Helmholtz hypersingular kernel
+ */
+static inline field
+hs_kernel_idx_helmholtzbem3d(uint idx_x, uint idx_y, void *data)
+{
+  bem3d_kernel_data *kd = (bem3d_kernel_data *) data;
+  pcsurface3d gr = kd->gr;
+  
+  /* Lookup coordinates and normals by index */
+  const real *x = gr->x[idx_x];
+  const real *y = gr->x[idx_y];
+  const real *nx = gr->n[idx_x];
+  const real *ny = gr->n[idx_y];
+  
+  /* Call coordinate-based kernel with bem data */
+  return hs_kernel_helmholtzbem3d(x, y, nx, ny, (void*)kd->bem);
+}
 
 #ifdef USE_SIMD
 static void
