@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 project(H2Lib 
     VERSION 1.0
     DESCRIPTION "Hierarchical Matrices Library"
-    LANGUAGES C
+    LANGUAGES C CXX
 )
 
 # Add cmake modules path
@@ -155,6 +155,7 @@ endif()
 add_subdirectory(Library)
 add_subdirectory(Tests)
 add_subdirectory(Examples)
+add_subdirectory(src)
 
 # Documentation
 if(BUILD_DOC)
