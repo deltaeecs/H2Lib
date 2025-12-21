@@ -15,7 +15,10 @@ using KernelFunc = std::function<Scalar(size_t, size_t)>;
 struct Stats {
     double build_time = 0.0;
     double matvec_time = 0.0;
-    double lu_time = 0.0;
+    double factorize_time = 0.0; // Renamed from lu_time for clarity
+    double solve_time = 0.0;
+    double kernel_eval_time = 0.0;
+    double structure_time = 0.0;
     double compression_ratio = 0.0; // (Compressed Size) / (Dense Size)
     size_t memory_usage = 0; // Bytes
     size_t dense_memory_usage = 0; // Bytes (theoretical)
@@ -50,10 +53,18 @@ public:
 class Factory {
 public:
     struct Config {
-        double eta = 2.0; // Admissibility parameter
-        int leaf_size = 40; // Max leaf size
-        double tolerance = 1e-6; // Approximation tolerance
-        int min_rank = 1; // Minimum rank (for H2)
+        double eta;
+        int leaf_size;
+        double tolerance;
+        int min_rank;
+
+        Config()
+            : eta(2.0)
+            , leaf_size(40)
+            , tolerance(1e-6)
+            , min_rank(1)
+        {
+        }
     };
 
     static std::unique_ptr<MatrixInterface> create(BackendType type, const Config& config = Config());

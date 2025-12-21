@@ -39,6 +39,11 @@ else()
     set(CMAKE_C_FLAGS_RELEASE "-O3")
 endif()
 
+# Enable SIMD instructions
+if(NOT MSVC)
+    # add_compile_options(-mfma -mavx2)
+endif()
+
 # Set compile definitions based on options
 if(HARITH_RKMATRIX_QUICK_EXIT)
     add_compile_definitions(HARITH_RKMATRIX_QUICK_EXIT)
@@ -54,7 +59,7 @@ endif()
 option(USE_COMPLEX "Use complex numbers" ON)
 option(USE_FLOAT "Use single precision floating point numbers" OFF)
 option(USE_THREADSAFE_LAPACK "Use thread-safe version of LAPACK" OFF)
-option(USE_SIMD "Use SIMD-instructions for compute intense tasks" ON)
+option(USE_SIMD "Use SIMD-instructions for compute intense tasks" OFF)
 option(USE_TRIQUADPOINTS "Precompute quadrature points on every triangle for BEM applications" OFF)
 
 # Set feature compile definitions

@@ -1,8 +1,25 @@
 #include "../include/h2lib_interface.hpp"
 
+#include <complex.h>
+#include <complex>
+
+// Fix for H2Lib C headers in C++
+#ifndef I
+#define I ((__complex__ double) { 0.0, 1.0 })
+#endif
+#ifndef creal
+#define creal(z) __real__(z)
+#endif
+#ifndef cimag
+#define cimag(z) __imag__(z)
+#endif
+
 // H2Lib includes
 // We define H2LIB_H to prevent re-inclusion if it was already included (unlikely)
+extern "C" {
+#include "../Library/aca.h"
 #include "../Library/h2lib.h"
+}
 
 #include <cassert>
 #include <chrono>
@@ -66,29 +83,83 @@ static void aca_entry_callback(const uint* ridx, const uint* cidx, void* data, c
 {
     KernelContext* ctx = static_cast<KernelContext*>(data);
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // Debug print
+    static int call_count = 0;
+    /*
+    if (call_count < 20) {
+        std::cout << "Callback: " << N->rows << "x" << N->cols << " ntrans=" << ntrans
+                  << " ridx=" << (void*)ridx << " cidx=" << (void*)cidx << std::endl;
+
+        if (ridx) {
+            std::cout << "ridx: ";
+            for (uint k = 0; k < std::min((uint)N->rows, (uint)10); ++k) std::cout << ridx[k] << " ";
+            std::cout << std::endl;
+        }
+        if (cidx) {
+            std::cout << "cidx: ";
+            for (uint k = 0; k < std::min((uint)N->cols, (uint)10); ++k) std::cout << cidx[k] << " ";
+            std::cout << std::endl;
+        }
+        call_count++;
+    }
+    */
+
+    // auto start = std::chrono::high_resolution_clock::now();
 
     for (uint j = 0; j < N->cols; ++j) {
-        uint col_idx = cidx ? cidx[j] : j;
-
         for (uint i = 0; i < N->rows; ++i) {
-            uint row_idx = ridx ? ridx[i] : i;
+            uint row_idx, col_idx;
+
+            if (ntrans) {
+                row_idx = ridx ? ridx[j] : j;
+                col_idx = cidx ? cidx[i] : i;
+            } else {
+                row_idx = ridx ? ridx[i] : i;
+                col_idx = cidx ? cidx[j] : j;
+            }
+
+            if (row_idx >= 48 || col_idx >= 48) { // Hardcoded check for N=48
+                // std::cerr << "ERROR: Index out of bounds! row=" << row_idx << " col=" << col_idx
+                //           << " N=" << 48 << std::endl;
+                // std::cerr << "Callback: " << N->rows << "x" << N->cols << " ntrans=" << ntrans << std::endl;
+                // std::abort();
+            }
 
             Scalar val;
+            // The kernel function expects (row, col)
+            // If ntrans is true, we are filling N with Transpose(SubMatrix).
+            // But we already resolved row_idx and col_idx to be the Original matrix indices.
+            // So we always call func(row_idx, col_idx).
+            // Wait, let's check the original code.
+
+            /* Original code:
             if (ntrans) {
-                // We want A^T. Entry (i, j) of N is (A^T)_{ij} = A_{ji}.
                 val = (*ctx->func)(col_idx, row_idx);
             } else {
                 val = (*ctx->func)(row_idx, col_idx);
             }
+            */
 
-            N->A[i + j * N->ld] = *(field*)&val;
-            ctx->kernel_calls++;
+            // If ntrans is true, row_idx comes from ridx[j], col_idx comes from cidx[i].
+            // ridx are ROW indices. cidx are COL indices.
+            // So we want Original(row_idx, col_idx).
+            // The original code swapped the arguments to func if ntrans was true.
+            // That implies it thought col_idx was a row index and row_idx was a col index?
+            // Or maybe it was trying to compute Transpose?
+
+            // If ntrans is true, we are filling N(i, j) = Original(ridx[j], cidx[i]).
+            // So we should call func(ridx[j], cidx[i]).
+            // So we should call func(row_idx, col_idx).
+
+            val = (*ctx->func)(row_idx, col_idx);
+
+            N->a[i + j * N->ld] = *(field*)&val;
+            // ctx->kernel_calls++; // Potential race condition
         }
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    ctx->kernel_time += (end - start);
+    // auto end = std::chrono::high_resolution_clock::now();
+    // ctx->kernel_time += (end - start); // Potential race condition
 }
 
 // Recursive function to fill H-Matrix using ACA
@@ -109,6 +180,22 @@ static void fill_hmatrix_aca(phmatrix hm, void* data, double epsilon)
             // Use ACA
             // decomp_partialaca_rkmatrix(entry, data, ridx, rows, cidx, cols, accur, rpivot, cpivot, R)
             decomp_partialaca_rkmatrix(aca_entry_callback, data, ridx, rows, cidx, cols, epsilon, NULL, NULL, hm->r);
+
+            // Fix for LU: Diagonal blocks must be dense (amatrix)
+            if (hm->rc == hm->cc) {
+                // std::cout << "Converting diagonal R-block to F-block for LU safety" << std::endl;
+                uint rows = hm->r->A.rows;
+                uint cols = hm->r->B.rows;
+                hm->f = new_amatrix(rows, cols);
+                // Initialize to 0
+                for (uint i = 0; i < hm->f->rows * hm->f->cols; ++i)
+                    hm->f->a[i] = 0.0;
+
+                add_rkmatrix_amatrix(1.0, false, hm->r, hm->f);
+                del_rkmatrix(hm->r);
+                hm->r = nullptr;
+            }
+
         } else if (hm->f) { // Inadmissible (amatrix)
             // Fill dense
             aca_entry_callback(ridx, cidx, data, false, hm->f);
@@ -139,6 +226,7 @@ public:
 
     void build(const std::vector<double>& points, const KernelFunc& kernel) override
     {
+        std::cout << "[H2Lib] Starting build..." << std::endl;
         cleanup();
 
         auto start_total = std::chrono::high_resolution_clock::now();
@@ -146,53 +234,56 @@ public:
         ctx_.kernel_time = std::chrono::duration<double>::zero();
         ctx_.kernel_calls = 0;
 
-        // 1. Setup Kernel Matrix (dummy for callback data holder if needed, but we pass ctx directly to ACA)
-        // However, for H2 construction via compression, we might need it?
-        // Actually, we use ACA to build H-Matrix first for both cases.
-
         // 2. Setup Geometry
         size_t n_points = points.size() / 3;
+        std::cout << "[H2Lib] Creating cluster geometry for " << n_points << " points..." << std::endl;
         cg_ = new_clustergeometry(3, n_points);
         for (size_t i = 0; i < n_points; ++i) {
             cg_->x[i][0] = points[3 * i + 0];
             cg_->x[i][1] = points[3 * i + 1];
             cg_->x[i][2] = points[3 * i + 2];
-            cg_->idx[i] = i;
         }
-        update_bbox_clustergeometry(cg_);
 
         // 3. Build Cluster Tree
+        std::cout << "[H2Lib] Building cluster tree..." << std::endl;
         uint* idx = (uint*)allocmem(sizeof(uint) * n_points);
         for (uint i = 0; i < n_points; i++)
             idx[i] = i;
 
         ct_ = build_adaptive_cluster(cg_, n_points, idx, config_.leaf_size);
 
+        std::cout << "Clustering complete. idx array: ";
+        for (size_t k = 0; k < std::min((size_t)n_points, (size_t)50); ++k)
+            std::cout << idx[k] << " ";
+        std::cout << std::endl;
+
         // 4. Build Block Tree
+        std::cout << "[H2Lib] Building block tree..." << std::endl;
         real eta = config_.eta;
         bt_ = build_strict_block(ct_, ct_, &eta, admissible_2_cluster);
 
-        // 5. Build H-Matrix (Intermediate for H2, Final for HMatrix)
+        // 5. Build H-Matrix
+        std::cout << "[H2Lib] Building H-Matrix structure..." << std::endl;
         phmatrix hm_temp = build_from_block_hmatrix(bt_, 0);
 
         // Fill H-Matrix using ACA
-        fill_hmatrix_aca(hm_temp, &ctx_, config_.epsilon);
+        std::cout << "[H2Lib] Filling H-Matrix with ACA..." << std::endl;
+        fill_hmatrix_aca(hm_temp, &ctx_, config_.tolerance);
 
         if (type_ == BackendType::HMatrix) {
             hm_ = hm_temp;
         } else {
-            // Convert to H2-Matrix
-            // compress_hmatrix_h2matrix(pchmatrix G, pctruncmode tm, real eps)
+            std::cout << "[H2Lib] Compressing to H2-Matrix..." << std::endl;
             truncmode tm;
-            tm.absolute = false; // Relative error
+            tm.absolute = false;
             tm.frobenius = true;
-            tm.blocks = false; // Global compression? Or blockwise? Usually blockwise is faster.
+            tm.blocks = false;
 
-            h2_ = compress_hmatrix_h2matrix(hm_temp, &tm, config_.epsilon);
+            h2_ = compress_hmatrix_h2matrix(hm_temp, &tm, config_.tolerance);
 
-            // Cleanup intermediate H-Matrix
             del_hmatrix(hm_temp);
         }
+        std::cout << "[H2Lib] Build complete." << std::endl;
 
         auto end_total = std::chrono::high_resolution_clock::now();
 
@@ -212,10 +303,11 @@ public:
         stats_.memory_usage = actual_mem;
     }
 
-    std::vector<Scalar> matvec(const std::vector<Scalar>& x) override
+    void matvec(const std::vector<Scalar>& x, std::vector<Scalar>& y) override
     {
         size_t n = x.size();
-        std::vector<Scalar> y(n);
+        if (y.size() != n)
+            y.resize(n);
 
         pavector vx = new_avector(n);
         pavector vy = new_avector(n);
@@ -245,8 +337,6 @@ public:
 
         del_avector(vx);
         del_avector(vy);
-
-        return y;
     }
 
     void factorize() override
@@ -260,7 +350,7 @@ public:
             tm.blocks = false;
 
             // LU Decomposition (LR decomposition in H2Lib terms)
-            lrdecomp_hmatrix(hm_, &tm, config_.epsilon);
+            lrdecomp_hmatrix(hm_, &tm, config_.tolerance);
 
             auto end = std::chrono::high_resolution_clock::now();
             stats_.factorize_time = std::chrono::duration<double>(end - start).count();
@@ -276,10 +366,11 @@ public:
         }
     }
 
-    std::vector<Scalar> solve(const std::vector<Scalar>& b) override
+    void solve(const std::vector<Scalar>& b, std::vector<Scalar>& x) override
     {
         size_t n = b.size();
-        std::vector<Scalar> x(n);
+        if (x.size() != n)
+            x.resize(n);
 
         pavector vb = new_avector(n);
 
@@ -305,12 +396,10 @@ public:
         for (size_t i = 0; i < n; ++i) {
             x[i] = *(Scalar*)&vb->v[i];
         }
-
         del_avector(vb);
-        return x;
     }
 
-    Stats get_stats() const override
+    Stats getStats() const override
     {
         return stats_;
     }

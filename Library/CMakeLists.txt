@@ -121,6 +121,10 @@ target_link_libraries(h2lib PUBLIC
     m
 )
 
+if(OpenMP_FOUND)
+    target_link_libraries(h2lib PUBLIC OpenMP::OpenMP_C)
+endif()
+
 # Set include directories
 target_include_directories(h2lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
