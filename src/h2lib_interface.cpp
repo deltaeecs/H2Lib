@@ -215,6 +215,14 @@ public:
         , hm_(nullptr)
         , h2_(nullptr)
         , cb_(nullptr)
+        , L_(nullptr)
+        , R_(nullptr)
+        , rwf_(nullptr)
+        , cwf_(nullptr)
+        , rwflow_(nullptr)
+        , cwflow_(nullptr)
+        , rwfup_(nullptr)
+        , cwfup_(nullptr)
     {
         ensure_initialized();
     }
@@ -356,13 +364,37 @@ public:
             stats_.factorize_time = std::chrono::duration<double>(end - start).count();
 
         } else if (type_ == BackendType::H2Matrix && h2_) {
-            // H2 LU is complex. For now, we might skip or implement if feasible.
-            // The user asked for it.
-            // lrdecomp_h2matrix requires cluster operators.
-            // We need to build them.
-            // This is non-trivial to do correctly without more context on H2Lib usage.
-            // We will print a warning and skip.
-            std::cerr << "Warning: H2-Matrix factorization not fully implemented in wrapper yet." << std::endl;
+            auto start = std::chrono::high_resolution_clock::now();
+
+            // Prepare structures for LR decomposition
+            pccluster root = h2_->rb->t;
+
+            pclusterbasis rblow = build_from_cluster_clusterbasis(root);
+            pclusterbasis cblow = build_from_cluster_clusterbasis(root);
+            L_ = build_from_block_lower_h2matrix(bt_, rblow, cblow);
+
+            pclusterbasis rbup = build_from_cluster_clusterbasis(root);
+            pclusterbasis cbup = build_from_cluster_clusterbasis(root);
+            R_ = build_from_block_upper_h2matrix(bt_, rbup, cbup);
+
+            truncmode tm;
+            tm.frobenius = true;
+            tm.absolute = false;
+            tm.blocks = false;
+            // Ensure other fields are zeroed if any (though struct seems small)
+            // Better to be safe if struct has padding or other fields I missed
+
+            rwf_ = prepare_row_clusteroperator(h2_->rb, h2_->cb, &tm);
+            cwf_ = prepare_col_clusteroperator(h2_->rb, h2_->cb, &tm);
+            rwflow_ = prepare_row_clusteroperator(L_->rb, L_->cb, &tm);
+            cwflow_ = prepare_col_clusteroperator(L_->rb, L_->cb, &tm);
+            rwfup_ = prepare_row_clusteroperator(R_->rb, R_->cb, &tm);
+            cwfup_ = prepare_col_clusteroperator(R_->rb, R_->cb, &tm);
+
+            lrdecomp_h2matrix(h2_, rwf_, cwf_, L_, rwflow_, cwflow_, R_, rwfup_, cwfup_, &tm, config_.tolerance);
+
+            auto end = std::chrono::high_resolution_clock::now();
+            stats_.factorize_time = std::chrono::duration<double>(end - start).count();
         }
     }
 
@@ -385,6 +417,8 @@ public:
             // lrsolve_hmatrix_avector(bool atrans, pchmatrix a, pavector x)
             // x is overwritten by solution.
             lrsolve_hmatrix_avector(false, hm_, vb);
+        } else if (type_ == BackendType::H2Matrix && L_ && R_) {
+            lrsolve_h2matrix_avector(L_, R_, vb);
         } else {
             // Fallback or error
             std::cerr << "Warning: Solve not implemented for this backend or matrix not factorized." << std::endl;
@@ -431,11 +465,40 @@ private:
             del_kernelmatrix(km_);
             km_ = nullptr;
         }
-        // cb_ is usually managed by h2matrix or we delete it?
-        // If we created it, we should delete it.
-        // But compress_hmatrix_h2matrix creates its own basis?
-        // Yes. So we don't own cb_ unless we created it explicitly.
-        // In build(), we didn't create cb_ explicitly for H2 (compress did).
+
+        // Cleanup H2 Factorization
+        if (L_) {
+            del_h2matrix(L_);
+            L_ = nullptr;
+        }
+        if (R_) {
+            del_h2matrix(R_);
+            R_ = nullptr;
+        }
+        if (rwf_) {
+            del_clusteroperator(rwf_);
+            rwf_ = nullptr;
+        }
+        if (cwf_) {
+            del_clusteroperator(cwf_);
+            cwf_ = nullptr;
+        }
+        if (rwflow_) {
+            del_clusteroperator(rwflow_);
+            rwflow_ = nullptr;
+        }
+        if (cwflow_) {
+            del_clusteroperator(cwflow_);
+            cwflow_ = nullptr;
+        }
+        if (rwfup_) {
+            del_clusteroperator(rwfup_);
+            rwfup_ = nullptr;
+        }
+        if (cwfup_) {
+            del_clusteroperator(cwfup_);
+            cwfup_ = nullptr;
+        }
     }
 
     BackendType type_;
@@ -450,6 +513,16 @@ private:
     phmatrix hm_;
     ph2matrix h2_;
     pclusterbasis cb_;
+
+    // H2 Factorization data
+    ph2matrix L_;
+    ph2matrix R_;
+    pclusteroperator rwf_;
+    pclusteroperator cwf_;
+    pclusteroperator rwflow_;
+    pclusteroperator cwflow_;
+    pclusteroperator rwfup_;
+    pclusteroperator cwfup_;
 };
 
 // Factory implementation
